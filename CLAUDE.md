@@ -24,7 +24,7 @@ shared RF Transceiver to the ground station network.
   are real constraints — flag when a design choice needs regulatory sign-off.
 
 ## Tech stack
-- Framework: Next.js (App Router assumed unless project files say otherwise)
+- Next.js (App Router) + TypeScript + Tailwind CSS
 - Applies to any lab producing a web UI/dashboard (WP2, UIP) — default to
   Next.js conventions (file-based routing, Server/Client Components, API
   routes or Route Handlers) instead of generic Express/vanilla setups.

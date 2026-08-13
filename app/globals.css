@@ -1,26 +1,100 @@
 @import "tailwindcss";
 
+/* Dark only — no light mode. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  --obsidian-950: #0a0a0c; /* page background */
+  --obsidian-900: #101116; /* card / panel surface — barely lifted off the page */
+  --obsidian-850: #16181e; /* nested surface (inputs, meters, hub) */
+  --obsidian-800: #1e2027; /* inert strokes */
+
+  /* Borders are alpha, not solid greys: they fade rather than draw a box,
+     which keeps the theme stark without hard-edged panels everywhere. */
+  --edge: rgba(184, 190, 201, 0.09);
+  --edge-strong: rgba(184, 190, 201, 0.16);
+
+  --signal-yellow: #e8ff4d; /* interactive ONLY */
+  --alert-red: #ff3b3b; /* fault / critical status ONLY */
+  --pulse-green: #39ff6a; /* nominal / healthy status ONLY */
+  --steel-300: #b8bec9; /* body text, muted labels */
+
+  /* Degraded + stale are additions to the specified palette.
+     Degraded needs a status hue that is neither nominal nor fault and must
+     not borrow signal-yellow (reserved for interactive). Amber is far enough
+     from #E8FF4D in hue and chroma to never read as a control. Stale is
+     deliberately chromaless — it is identified by dash pattern first. */
+  --amber-degraded: #ff9f1c;
+  --stale-gray: #8a929e; /* lightened from mid-gray to clear 4.5:1 on both surfaces */
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-obsidian-950: var(--obsidian-950);
+  --color-obsidian-900: var(--obsidian-900);
+  --color-obsidian-850: var(--obsidian-850);
+  --color-obsidian-800: var(--obsidian-800);
+  --color-edge: var(--edge);
+  --color-edge-strong: var(--edge-strong);
+  --color-signal: var(--signal-yellow);
+  --color-fault: var(--alert-red);
+  --color-nominal: var(--pulse-green);
+  --color-degraded: var(--amber-degraded);
+  --color-stale: var(--stale-gray);
+  --color-steel: var(--steel-300);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-display: var(--font-oswald);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-plex-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--obsidian-950);
+  color: var(--steel-300);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* Condensed technical display face. Tracking tightened at display sizes. */
+.display {
+  font-family: var(--font-oswald), "Arial Narrow", sans-serif;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+/* Orbit sweep behind the hero. One orchestrated effect for the whole page. */
+@keyframes orbit-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Fault breathes rather than blinks — legible without being an alarm strobe. */
+@keyframes fault-throb {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* The arrow's idle tell: a 2px drift, slow enough to read as alive, not busy. */
+@keyframes arrow-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
