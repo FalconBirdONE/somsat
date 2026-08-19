@@ -89,6 +89,18 @@ body {
   }
 }
 
+/* Smooth float-up expansion for floating modal/dialogs */
+@keyframes float-up {
+  from {
+    opacity: 0;
+    transform: translateY(32px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
