@@ -89,7 +89,7 @@ export default function MissionControlPage() {
           <ArrowLink href="/" label="Back to overview" direction="left" />
           <div>
             <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-steel/50">
-              UIP Lab · Experiment 1 · UI Programming
+              SomSat &amp; SomPod · Mission Control Portal
             </span>
             <h1 className="display mt-1 text-3xl leading-none text-white sm:text-4xl">
               Mission Control

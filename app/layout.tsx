@@ -16,7 +16,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SomaiyaSat & SomaiyaPod",
+  title: "SomSat & SomPod",
   description:
     "PocketQube mission with autonomous AI-based data routing across M17, Codec2, SSTV and TT&C payloads.",
 };
