@@ -1,241 +1,202 @@
-# design.md — SomaiyaSat & SomaiyaPod Mission Control Portal
+# DESIGN.md — SpaceX Aerospace Minimalist System
 
-Extracted from the code as it stands (Next.js 16 App Router + React 19 +
-Tailwind CSS v4 + TypeScript). Every token, size and ratio below is what the
-repository actually renders — not an aspiration. Sections marked **NOT BUILT**
-are named in the experiment brief but have no implementation yet; they are
-listed as specification targets so the next contributor does not invent
-competing tokens.
+**Master Design Specification for SomaiyaSat & SomaiyaPod Mission Control & Ground Station Portal**
 
-Source of truth for the values here:
-`app/globals.css`, `app/layout.tsx`, `app/page.tsx`,
-`app/mission-control/page.tsx`, `components/*.tsx`, `lib/status.ts`.
+*Target Environment: Next.js 16 App Router · React 19 · Tailwind CSS v4 · TypeScript*  
+*Mission Identifier: SomaiyaSat (5cm PocketQube) & SomaiyaPod Deployer (KJS-SRS-01)*
 
 ---
 
-## 1. Layout Geometry & Grid Architecture
+## 1. Architectural Philosophy & Principles
 
-### 1.1 Document shell
+The SomaiyaSat Mission Control Portal implements a **SpaceX-inspired Aerospace Minimalist System**, engineered for high-stress, data-dense orbital telemetry monitoring under extreme cognitive constraints.
 
-`app/layout.tsx`
+### 1.1 Core Tenets
 
-| Element | Rule | Class |
-|---|---|---|
-| `<html>` | full height, antialiased, three font vars mounted | `h-full antialiased` |
-| `<body>` | column flex, page background, min full height | `min-h-full flex flex-col bg-obsidian-950` |
-| `<main>` | takes remaining height | `flex-1` |
-
-There is no fixed app chrome — **no persistent header bar, no global sidebar**.
-Each route owns its own header block. This is deliberate: two routes, one of
-which is a full-bleed hero, so a global chrome would be dead weight.
-
-### 1.2 Container
-
-Both routes share one measure:
-
-```
-max-w-6xl (72rem / 1152px), mx-auto
-px-5 → sm:px-8   (mission control)
-px-6 → sm:px-10  (landing)
-```
-
-### 1.3 Landing route (`/`)
-
-| Band | Geometry |
-|---|---|
-| Hero `<section>` | `relative flex min-h-[88vh] items-center overflow-hidden` |
-| Hero inner | `max-w-6xl px-6 py-24 sm:px-10`, `relative` above the orbit layer |
-| Orbit visual | `absolute inset-0`, `pointer-events-none`, `aria-hidden` |
-| — bloom | `right-[-6%] top-[34%]`, `38rem × 38rem`, `-translate-y-1/2` |
-| — SVG | `right-[-10%] top-[34%]`, `30rem` → `sm:38rem`, viewBox `0 0 400 400` |
-| Headline measure | `max-w-[16ch]`, `leading-[0.92]` |
-| Body copy measure | `max-w-md` |
-| Workstream grid | `grid-cols-2 → sm:grid-cols-3 → lg:grid-cols-5`, `gap-3` |
-| Section pad | `pb-28` |
-
-### 1.4 Mission Control route (`/mission-control`)
-
-The operative layout. Outer container `max-w-6xl px-5 py-10 sm:px-8`.
-
-```
-┌───────────────────────────────────────────────────────────────┐
-│ HEADER  flex flex-wrap items-end justify-between               │
-│         gap-x-8 gap-y-5 · border-b border-edge · pb-6          │
-│  ┌ back arrow (40px) + eyebrow + H1 ┐   ┌ <dl> Faults/Stale/  │
-│                                          Override, gap-7 ┐     │
-├───────────────────────────────────────────────────────────────┤
-│ ROW 1   mt-6 grid items-start gap-5                            │
-│         lg:grid-cols-[19rem_minmax(0,1fr)]                     │
-│  ┌ ASIDE 19rem ─────────┐ ┌ StatusDetail  fluid ─────────────┐│
-│  │ selector listbox     │ │ h-full flex-col gap-7            ││
-│  │ p-3, rows gap-0.5    │ │ p-6 → sm:p-8                     ││
-│  └──────────────────────┘ └──────────────────────────────────┘│
-├───────────────────────────────────────────────────────────────┤
-│ ROW 2   mt-5, same grid template — columns stay aligned        │
-│  ┌ State legend  p-5 ───┐ ┌ Design rationale <details>  p-5 ─┐│
-└───────────────────────────────────────────────────────────────┘
-```
-
-**Grid contract:** both rows use the identical
-`lg:grid-cols-[19rem_minmax(0,1fr)]` template, so the 19rem rail runs
-unbroken down the page. `minmax(0,1fr)` (not `1fr`) is required — the
-sparkline is a `w-full` SVG and would otherwise blow the column out.
-Below `lg` both rows collapse to a single stacked column.
-
-Vertical rhythm: `pb-6` under the header, `mt-6` to row 1, `mt-5` between
-rows, `gap-5` between columns.
-
-### 1.5 Detail panel internal flex
-
-`components/StatusDetail.tsx` — `flex h-full flex-col gap-7`:
-
-1. Title row — `flex flex-wrap items-start justify-between gap-4`
-2. Dial + fields — `flex flex-wrap items-center gap-8`; ring is
-   `h-40 w-40 shrink-0` (160px), fields are `grid flex-1 grid-cols-2
-   gap-x-6 gap-y-4`
-3. Freshness meter — `h-1.5` track, `rounded-full`
-4. Trend sparkline — `h-12 w-full`, viewBox `280 × 48`,
-   `preserveAspectRatio="none"`
-5. Implication banner — `mt-auto` pins it to the panel floor so panel height
-   is stable regardless of whether `history` exists
-
-### 1.6 Ring geometry (one primitive, every size)
-
-`components/StatusTile.tsx`
-
-| Constant | Value | Meaning |
-|---|---|---|
-| viewBox | `0 0 104 104` | shared coordinate space |
-| `R_STATE` | 46 | outer ring — **state** via dash pattern |
-| `R_GAUGE` | 37 | inner arc — **value** 0–100 |
-| `C_GAUGE` | `2πR` ≈ 232.5 | dasharray denominator for fill |
-| rotation | `-rotate-90` | arc starts at 12 o'clock |
-
-Rendered sizes: `h-7 w-7` (28px, legend) · `h-9 w-9` (36px, selector row) ·
-`h-40 w-40` (160px, detail dial). Same geometry at all three, so a badge and
-a dial read as the same object.
-
-### 1.7 Breakpoints in use
-
-`sm` (640px) — padding and type step-up. `lg` (1024px) — the two-column
-mission-control split and the 5-across workstream grid. No `md`, `xl`, or
-`2xl` rules exist; do not add one without a reason the container can't solve.
+- **Monochrome & Stark:** High-contrast binary interface rooted in pure pitch black (`#000000`) and crisp white (`#FFFFFF`). Unnecessary chromatic decoration is eliminated so that vehicle graphics, orbital trajectories, and critical telemetry anomalies instantly command operator focus.
+- **Industrial Telemetry Density:** Geometric sans-serif and monospaced instrumentation typography set predominantly in uppercase with positive letter-spacing (`tracking-wider` to `tracking-[0.34em]`). Emulates aerospace stencil placards, avionics HUD readouts, and space-qualified flight computer terminals.
+- **Ghost Interface Components:** Traditional UI containers, drop-shadow elevations, heavy fills, and decorative cards are banished. Components float as "ghost" surfaces directly over full-bleed dark backdrops, bounded only by 1px hairline structural dividers (`rgba(255, 255, 255, 0.2)`).
+- **Deterministic Non-Color Redundancy:** Telemetry readouts never rely on hue alone. Every subsystem status carries a tri-fold redundant encoding: **Semantic Accent Hue + Stencil Icon Geometry + SVG Ring Dash Pattern**, ensuring zero loss of critical information under monochrome displays, optical glare, or color-vision deficiency.
+- **Autonomous Subsystem Epistemology & Ground Override:** Ground station operators retain absolute command authority (`GND armed`). Staleness is treated as an epistemological status (an unrefreshed subsystem is *unknown*, never assumed *healthy*), and every AI routing decision provides explicit safe-mode fallbacks.
 
 ---
 
-## 2. Color Palette & Dark-Mode Design System
+## 2. Design Tokens & Palette Specifications
 
-**Dark only.** `color-scheme: dark` on `:root`, no light palette, no `dark:`
-variants anywhere. Declared once in `app/globals.css` and exposed to Tailwind
-through `@theme inline` — components never hardcode hex.
-
-### 2.1 Surfaces
-
-| Token | HEX | Tailwind | Use |
-|---|---|---|---|
-| `--obsidian-950` | `#0a0a0c` | `bg-obsidian-950` | page background |
-| `--obsidian-900` | `#101116` | `bg-obsidian-900` | card / panel surface |
-| `--obsidian-850` | `#16181e` | `bg-obsidian-850` | nested (meter track, ring well) |
-| `--obsidian-800` | `#1e2027` | `stroke-obsidian-800` | inert strokes |
-
-Panels sit ~2% off the page — the hierarchy is edge and spacing, not
-elevation.
-
-### 2.2 Edges
-
-Borders are **alpha, not solid grey**, so they fade rather than draw a box.
-
-| Token | Value | Tailwind |
-|---|---|---|
-| `--edge` | `rgba(184,190,201,0.09)` | `border-edge` |
-| `--edge-strong` | `rgba(184,190,201,0.16)` | `border-edge-strong` (hover only) |
-
-### 2.3 Semantic status states
-
-Closed set. No ad-hoc status colour is permitted.
-
-| State | Token | HEX | Tailwind | Meaning |
-|---|---|---|---|---|
-| Nominal | `--pulse-green` | `#39ff6a` | `text-nominal` `stroke-nominal` `bg-nominal/10` | confirmed healthy, fresh |
-| Degraded | `--amber-degraded` | `#ff9f1c` | `text-degraded` … | marginal, approaching limit |
-| Fault | `--alert-red` | `#ff3b3b` | `text-fault` … | confirmed failure |
-| Stale | `--stale-gray` | `#8a929e` | `text-stale` … | no fresh telemetry — **unknown, not healthy** |
-
-Tints for banner backgrounds are always `/10` of the same hue
-(`bg-nominal/10` etc.), with the full-strength hue as the text colour.
-
-### 2.4 Reserved hue
-
-| Token | HEX | Rule |
-|---|---|---|
-| `--signal-yellow` | `#e8ff4d` | **interactive only** |
-
-`signal` appears on: the arrow link ring and label, the "Cycle state" button,
-the selected row's `border-l-2` and `bg-signal/[0.06]`, every
-`focus-visible:outline-signal`, and the `<details>` marker. It appears on
-nothing that isn't clickable — which is why `degraded` is amber and not
-yellow. Amber is far enough in hue and chroma from `#e8ff4d` never to read as
-a control.
-
-### 2.5 Typographic ink
-
-| Token | HEX | Use |
-|---|---|---|
-| `--steel-300` | `#b8bec9` | body text, labels, inert glyphs |
-| — | `#ffffff` | headings only (`text-white`) |
-
-Opacity ladder on steel — the entire de-emphasis system:
-`text-steel` (100%) → `/80` prose → `/70` glyph → `/60` legend meaning →
-`/55`, `/50`, `/45` micro-labels. `--stale-gray` was lightened off mid-grey
-specifically to clear 4.5:1 on both `#0a0a0c` and `#101116`.
-
-### 2.6 Non-colour redundancy (accessibility contract)
-
-Colour is never the sole encoder. Each state carries **hue + icon shape +
-ring dash pattern**:
-
-| State | `dash` | `width` | Icon |
-|---|---|---|---|
-| nominal | `0` (solid) | 2 | circle-check |
-| degraded | `1 6` (dotted) | 2.5 | alert-triangle |
-| fault | `0` (solid, bold) | 4 | alert-octagon |
-| stale | `9 7` (dashed) | 2 | wifi-off |
-
-The readout survives greyscale and colour-vision deficiency. `StatusLegend`
-renders the **real** `StatusRing`, not a colour swatch, so the dash pattern is
-legible in the legend exactly as on the tiles.
-
-### 2.7 Motion
-
-| Keyframe | Applied to | Duration |
-|---|---|---|
-| `orbit-sweep` | hero satellite + beam group | 34s linear infinite |
-| `fault-throb` | ring at `status === "fault"` | 2.4s ease-in-out infinite |
-| `arrow-drift` | ArrowLink glyph, 2px x-drift | 3.6s ease-in-out infinite |
-
-Fault *breathes* (1 → 0.7 opacity) rather than blinks — legible without being
-an alarm strobe. All three are `motion-safe:` and a global
-`prefers-reduced-motion` block collapses every animation/transition to 0.001ms.
-
----
-
-## 3. Typography Hierarchy
-
-Three faces, loaded via `next/font/google` in `app/layout.tsx` and bound to
-Tailwind families in `@theme inline`.
-
-| Role | Family | CSS var | Tailwind | Weights |
-|---|---|---|---|---|
-| Display | **Oswald** (condensed) | `--font-oswald` | `font-display` / `.display` | default |
-| Body | **Inter** | `--font-inter` | `font-sans` (body default) | default |
-| Instrumentation | **IBM Plex Mono** | `--font-plex-mono` | `font-mono` | 400 / 500 / 600 |
-
-**Rule: every numeric telemetry readout renders in IBM Plex Mono.** Values,
-ages, counters, gauges — anything an operator compares column-to-column.
-
-### 3.1 `.display` utility
+### 2.1 CSS Custom Properties (`:root`)
 
 ```css
+:root {
+  /* Canvas & Backgrounds */
+  --bg-primary: #000000;
+  --bg-secondary: #080808;
+  --bg-surface-glass: rgba(0, 0, 0, 0.7);
+
+  /* Typography & Foreground */
+  --text-primary: #ffffff;
+  --text-muted: #8e8e93;
+  --text-subtle: #5a5a5f;
+
+  /* Borders & Dividers */
+  --border-hairline: rgba(255, 255, 255, 0.2);
+  --border-active: #ffffff;
+
+  /* Accents (Telemetry & Focus) */
+  --accent-alert: #ff3b30;
+  --accent-status-live: #00e676;
+
+  /* Auxiliary Semantic Telemetry Tokens */
+  --accent-degraded: #ff9f1c;
+  --accent-stale: #8e8e93;
+}
+```
+
+### 2.2 Tailwind CSS v4 `@theme inline` Mapping
+
+```css
+@theme inline {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-glass: var(--bg-surface-glass);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+
+  --color-border-hairline: var(--border-hairline);
+  --color-border-active: var(--border-active);
+
+  --color-nominal: var(--accent-status-live);
+  --color-fault: var(--accent-alert);
+  --color-degraded: var(--accent-degraded);
+  --color-stale: var(--accent-stale);
+  --color-signal: var(--border-active);
+
+  --font-display: var(--font-oswald);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-plex-mono);
+}
+```
+
+### 2.3 Semantic Surface & Ink Inventory
+
+| Token | HEX / Alpha | Tailwind Class | Semantic Role & Architectural Intent |
+|---|---|---|---|
+| `--bg-primary` | `#000000` | `bg-bg-primary` / `bg-black` | Deep space canvas; full-bleed viewport floor. |
+| `--bg-secondary` | `#080808` | `bg-bg-secondary` | Ghost panel backdrop, barely elevated (~1%) from black. |
+| `--bg-surface-glass` | `rgba(0, 0, 0, 0.7)` | `bg-bg-glass backdrop-blur-md` | Floating HUD overlays and security modal backdrops. |
+| `--border-hairline`| `rgba(255, 255, 255, 0.2)` | `border-border-hairline` | Ultra-thin 1px structural hairline; defines bounds without boxing. |
+| `--border-active`  | `#ffffff` | `border-border-active` | Active selection rail, focus indicators, primary interactive stroke. |
+| `--text-primary`   | `#ffffff` | `text-text-primary` / `text-white` | Primary instrumentation readouts, telemetry values, display H1/H2. |
+| `--text-muted`     | `#8e8e93` | `text-text-muted` | Body copy, secondary indicators, inactive labels (4.5:1 compliant). |
+| `--text-subtle`    | `#5a5a5f` | `text-text-subtle` | Stencil micro-labels, metadata keys, coordinate axes, tracking captions. |
+| `--accent-status-live` | `#00e676` | `text-nominal` `stroke-nominal` | Live downlink locked, nominal health, fresh telemetry frame. |
+| `--accent-alert`   | `#ff3b30` | `text-fault` `stroke-fault` | Confirmed hardware fault, power rail trip, threshold breach. |
+| `--accent-degraded`| `#ff9f1c` | `text-degraded` `stroke-degraded` | Marginal link, battery derating, sub-optimal SNR. |
+| `--accent-stale`   | `#8e8e93` | `text-stale` `stroke-stale` | Comms dropout, expired packet window, unknown health status. |
+
+---
+
+## 3. Layout Geometry & Grid Architecture (Preserved Layout)
+
+The application adheres strictly to the existing two-route layout architecture:
+
+### 3.1 Document Shell (`app/layout.tsx`)
+
+| Element | Geometry & CSS Rule | Semantic Contract |
+|---|---|---|
+| `<html>` | `h-full antialiased` | Mounts display, sans, and mono font variables; sets `color-scheme: dark`. |
+| `<body>` | `min-h-full flex flex-col bg-black text-white` | Pure black viewport canvas; flex-column structure. |
+| `<main>` | `flex-1` | Route-driven fluid container. No persistent global chrome (no header/sidebar clutter). |
+
+### 3.2 Landing Route (`/` — `app/page.jsx`)
+
+The landing route acts as an interactive morphing aerospace portal that shifts seamlessly between **Guest Exploration Mode** and **Authenticated Flight Director HUD**:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ HERO SECTION: max-w-6xl mx-auto px-5 sm:px-8 pt-6 sm:pt-8 pb-12             │
+│                                                                             │
+│ [COLLAPSIBLE INTRO HEADER: 5CM POCKETQUBE CAPSTONE MISSION / SOMAIYASAT]    │
+│ (Collapses smoothly to 0px height upon Flight Director Authorization)        │
+│                                                                             │
+│ ┌───────────────────────────────────────┬─────────────────────────────────┐ │
+│ │ 3D TILTED ORBIT VISUAL CANOPY         │ TACTICAL NAVIGATION HUD         │ │
+│ │ • Elliptical PocketQube Path          │ • Level-4 Flight Director Auth  │ │
+│ │ • Downlink Telemetry Ray to GS-01     │ • 01 // Mission Control Portal  │ │
+│ │ • LEO 500KM SSO Telemetry Chips       │ • 02 // Weather & ATC [Standby] │ │
+│ │ (Col-12 Guest → Col-5 Auth)           │ • 03 // Tactical Nav  [Standby] │ │
+│ │                                       │ • Encrypted Disconnect Trigger  │ │
+│ │                                       │ (Hidden Guest → Col-7 Auth)     │ │
+│ └───────────────────────────────────────┴─────────────────────────────────┘ │
+│                                                                             │
+│ [CONTROL DOCK (Guest View)]: Version Selector [v2.0-live] + Operator Login   │
+│ [LOGIN MODAL (Floating)]: Level-4 Callsign + Passcode + Encrypted TLS Badge │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ MISSION WORKSTREAMS (A–E): max-w-6xl mx-auto px-5 sm:px-8 pb-16 pt-8        │
+│ grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3                        │
+│ [A: Interfaces] [B: AI Model] [C: Deployer] [D: HIL Testing] [E: Ground Stn]│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Container Bounds:** `max-w-6xl (72rem / 1152px), mx-auto`, `px-5 sm:px-8`.
+- **Morphing Orbit Visual:** Spans full 12 columns in guest mode; smoothly transitions to `lg:col-span-5` with live telemetry headers when authenticated.
+- **Flight Director HUD:** Expands to `lg:col-span-7` upon authentication with 3-item tactical routing list.
+- **Workstreams Matrix:** 5-column grid (`lg:grid-cols-5`) presenting subsystems A through E with technical glyphs and stencil titles.
+
+### 3.3 Mission Control Route (`/mission-control` — `app/mission-control/page.tsx`)
+
+The operational flight deck layout runs a rigid two-column telemetry split:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ HEADER: flex flex-wrap items-end justify-between border-b border-white/20 pb-6│
+│ ┌ [← Back Arrow (40px)] + Eyebrow + H1 "MISSION CONTROL" ┐  ┌ <dl> Counters: │
+│                                                              │ FAULTS: 01    │
+│                                                              │ STALE:  01    │
+│                                                              │ OVERRIDE: GND ┘│
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ROW 1: mt-6 grid items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]       │
+│ ┌ ASIDE (19rem) ─────────────────────────┐ ┌ STATUS DETAIL PANEL (Fluid) ──┐│
+│ │ Header: "TELEMETRY · 6 CHANNELS"       │ │ Subsystem Header + Cycle Btn  ││
+│ │ Listbox of 6 Subsystem StatusTiles     │ │ Dual-Ring Dial (160px) +      ││
+│ │ • Link Quality (Nominal / 12.4 dB)     │ │ 4-Cell Telemetry Data Grid    ││
+│ │ • Battery / Power (Degraded / 41%)     │ │ Stale Freshness Meter Track   ││
+│ │ • Onboard Temp (Fault / 71°C)          │ │ 6-Sample Sparkline Trend      ││
+│ │ • TT&C (Nominal / 4 frm)               │ │ Autonomous Implication Box    ││
+│ │ • SSTV Queue (Stale / 2 img)           │ └───────────────────────────────┘│
+│ │ • M17 / Codec2 (Nominal / IDLE)        │                                  │
+│ │ Advisory Banner when Stale > 0         │                                  │
+│ └────────────────────────────────────────┘                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ROW 2: mt-5 grid items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]       │
+│ ┌ STATE LEGEND (19rem) ──────────────────┐ ┌ DESIGN RATIONALE (<details>) ─┐│
+│ │ 4 Status Rows with real SVG Rings:     │ │ Native expandable details:    ││
+│ │ Nominal, Degraded, Fault, Stale        │ │ Epistemological staleness &   ││
+│ └────────────────────────────────────────┘ │ ground override rationale     ││
+│                                            └────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Synchronized Rail Contract:** Both Row 1 and Row 2 share the exact `lg:grid-cols-[19rem_minmax(0,1fr)]` template. The `minmax(0,1fr)` sizing prevents fluid SVG sparklines from overflowing the right column.
+- **Vertical Hierarchy:** `pb-6` header divider → `mt-6` to telemetry rail → `mt-5` to legend rail → `gap-5` inter-column gutter.
+
+---
+
+## 4. Typography Hierarchy & Industrial Stencil Telemetry
+
+### 4.1 Typeface Allocation
+
+| Role | Font Family | Variable | Target Content |
+|---|---|---|---|
+| **Display / Placard** | **Oswald** (Condensed Sans) | `--font-oswald` | Page headings, modal titles, subsystem labels, workstream headers. |
+| **Instrumentation** | **IBM Plex Mono** | `--font-plex-mono` | Numeric readouts, signal levels, dB/SNR metrics, timers, clocks, hex addresses. |
+| **Prose / Fallbacks** | **Inter** (Neutral Geometric Sans)| `--font-inter` | Technical briefings, implication descriptions, operator instructions. |
+
+### 4.2 Industrial Telemetry Scale & Stencil Spacing
+
+```css
+/* Display Utility: High-impact condensed styling */
 .display {
   font-family: var(--font-oswald), "Arial Narrow", sans-serif;
   letter-spacing: -0.01em;
@@ -243,277 +204,206 @@ ages, counters, gauges — anything an operator compares column-to-column.
 }
 ```
 
-Note the sign: display sizes get **negative** tracking; mono micro-labels get
-heavy **positive** tracking. Those are the two tracking regimes in the system.
+| Element | Font | Size | Weight | Tracking | Color |
+|---|---|---|---|---|---|
+| **Hero Mission Title** | Oswald | `text-4xl sm:text-6xl lg:text-7xl` | 700 | `tracking-[-0.01em]` | `#ffffff` |
+| **Page H1 / Header** | Oswald | `text-3xl sm:text-4xl` | 700 | `tracking-tight` | `#ffffff` |
+| **Subsystem Panel H2** | Oswald | `text-2xl` | 600 | `tracking-normal` | `#ffffff` |
+| **Placard Eyebrows** | Plex Mono | `text-[10px] sm:text-[11px]` | 500 | `tracking-[0.34em]` | `#8e8e93` |
+| **Channel Status Tag** | Plex Mono | `text-[10px]` | 600 | `tracking-[0.2em]` | Semantic State Hue |
+| **Telemetry Tile Value**| Plex Mono | `text-[13px]` | 500 | `tracking-normal` | `#ffffff` |
+| **Telemetry Detail Dial**| Plex Mono | `text-base` | 600 | `tracking-tight` | `#ffffff` / State Hue |
+| **Header Metrics Counter**| Plex Mono | `text-sm` | 600 | `tracking-[0.16em]` | `#ffffff` (or Accent)|
+| **Technical Body Prose**| Inter | `text-xs sm:text-sm` | 400 | `leading-6` | `#8e8e93` |
 
-### 3.2 Size / tracking scale as used
-
-| Slot | Size | Family | Tracking | Colour |
-|---|---|---|---|---|
-| Hero H1 | `text-5xl → sm:text-7xl → lg:text-8xl`, `leading-[0.92]` | display | `-0.01em` | white / steel |
-| Page H1 (mission) | `text-3xl → sm:text-4xl`, `leading-none` | display | `-0.01em` | white |
-| Panel H2 | `text-2xl leading-none` | display | `-0.01em` | white |
-| Section rule H2 | `text-xs` | display | `0.3em` | `steel/60` |
-| Hero eyebrow | `text-[11px]` uppercase | mono | `0.32em` | `steel/55` |
-| Route eyebrow | `text-[10px]` uppercase | mono | `0.2em` | `steel/50` |
-| Panel label | `text-[10px]` uppercase | mono | `0.18em` | `steel/45` |
-| Meter label | `text-[10px]` uppercase | mono | `0.16em` | `steel/50` |
-| Tile name | `text-[12px]`, `leading-tight` | display | `0.07em` | steel |
-| Tile value | `text-[13px]`, `leading-tight` | mono | — | steel |
-| Tile state / age | `text-[10px]` | mono | — | state hue / `steel/45` |
-| Dial value | `text-base leading-none` | mono | `tracking-tight` | state hue |
-| Field value | `text-[13px]` | mono | — | steel |
-| Header counters | `text-sm` | mono | `0.16em` | state hue or steel |
-| Body prose | `text-base leading-7` / `text-sm leading-6` | sans | — | steel, `steel/80` |
-| Legend meaning | `text-[11px] leading-tight` | sans | — | `steel/60` |
-
-Counters are zero-padded (`padStart(2, "0")`) so the header does not reflow as
-values change.
+*Rule:* Every numeric counter in the header strip must use `padStart(2, "0")` (e.g., `01`, `00`) to guarantee zero layout shift during telemetry updates.
 
 ---
 
-## 4. UI Components & Widget Registry
+## 5. Orbital Motion & Satellite Animation System (Preserved)
 
-### 4.1 Built
+The 3D Tilted Top-Down Orbit Visual (`components/OrbitVisual.jsx`) is preserved as the central graphical asset of the mission interface.
 
-| Component | File | Bounds | Behavioural states |
-|---|---|---|---|
-| **RootLayout** | `app/layout.tsx` | full viewport, column flex | static; mounts font vars |
-| **ArrowLink** | `components/ArrowLink.tsx` | 40px circle (`h-10 w-10`) + optional mono label | idle drift · hover (fills signal, glyph goes obsidian, +0.5 x-shift) · `focus-visible` 2px signal outline · `direction="left"` mirrors via `rotate-180` |
-| **OrbitVisual** | `components/OrbitVisual.tsx` | `absolute inset-0`, 30–38rem SVG | one 34s sweep; `pointer-events-none` + `aria-hidden`; monochrome steel only — no status hue, no signal |
-| **WorkstreamCard** | `components/WorkstreamCard.tsx` | grid cell, `px-4 py-6`, 40px glyph | hover → `border-edge-strong` + glyph `steel/70 → steel`; **non-interactive**, never signal |
-| **StatusRing** | `StatusTile.tsx` (named export) | 28 / 36 / 160px, viewBox 104 | outer dash = state, inner arc = gauge; `stale` forces fill to 0; `fault` throbs; 500ms dasharray transition |
-| **Sparkline** | `StatusTile.tsx` (named export) | default 44×12; detail 280×48 | area fill at 0.12 opacity + `non-scaling-stroke` polyline; min/max auto-scaled, `span \|\| 1` guards flat series; `aria-hidden` |
-| **StatusTile** | `components/StatusTile.tsx` (default) | full width of 19rem rail, `py-2.5 px-3`, `border-l-2` | renders `<button>` when `onSelect` given, else `<div>`; selected → signal left border + `bg-signal/[0.06]`; hover → `bg-white/[0.03]`; `aria-pressed`; `sr-only` meaning text; stale shows `——` and bare age instead of `T+` |
-| **StatusDetail** | `components/StatusDetail.tsx` | fluid column, `h-full`, `p-6 → sm:p-8` | dial + fields + freshness meter + trend + implication banner; stale blanks value and gauge and pins the meter at 100% "threshold exceeded" |
-| **StatusLegend** | `components/StatusLegend.tsx` | fits 19rem rail, rows `gap-3.5` | static; iterates the closed `ORDER` set through the real ring |
-| **Telemetry selector rail** | `app/mission-control/page.tsx` | `19rem` column, `role="listbox"` | holds `selected` index; renders the stale-count advisory banner when `staleCount > 0` |
-| **Header counter strip** | `app/mission-control/page.tsx` | header right, `<dl>` `gap-7` | Faults / Stale / Override; count goes hue-coloured only when non-zero; `Override: GND armed` is currently a static affordance |
-| **Design rationale** | `app/mission-control/page.tsx` | fluid column, native `<details>` | collapsed by default; signal-coloured marker; zero JS |
+```
+                  [ LAYER 1: BACK ORBIT ARC (rx=240, ry=85, dashed) ]
+                                      ▲
+                                      │
+           ┌──────────────────────────┴──────────────────────────┐
+           │        [ LAYER 2: PLANET EARTH (r=76) ]             │
+           │  • Radial gradient surface: #1a1d26 → #050507       │
+           │  • Atmospheric rim glow (r=82, alpha 0.45)          │
+           │  • Latitude / Longitude spherical grid              │
+           │  • Ground Station Target: GS-01 at (288, 168)       │
+           │    with pulsing signal ring: pulse-signal-glow      │
+           └──────────────────────────┬──────────────────────────┘
+                                      │
+                                      ▼
+                 [ LAYER 3: FRONT ORBIT ARC (rx=240, ry=85) ]
+                                      ▲
+                                      │ (occlusion depth plane)
+           ┌──────────────────────────┴──────────────────────────┐
+           │   [ LAYER 4: ORBITING SATELLITE (28s period) ]      │
+           │  • 5cm PocketQube Chassis with Solar Panels         │
+           │  • Center Beacon LED & Monopole Antenna             │
+           │  • Continuous Telemetry Downlink Ray to GS-01       │
+           │    with beam-sweep keyframe animation               │
+           └─────────────────────────────────────────────────────┘
+```
 
-### 4.2 State model
+### 5.1 Coordinate Space & Perspective Specs
 
-`lib/status.ts` — the whole domain model is four types-worth of code.
+- **SVG Viewport:** `viewBox="0 70 600 260"` with `-12°` system plane tilt (`transform="rotate(-12 300 200)"`).
+- **Orbital Ellipse Parameters:** Semi-major axis $r_x = 240\text{px}$, semi-minor axis $r_y = 85\text{px}$.
+- **Ground Station Node:** GS-01 locked at coordinate `(288, 168)` on Earth's northern hemisphere.
 
-```ts
-type SubsystemStatus = "nominal" | "degraded" | "fault" | "stale";
+### 5.2 Keyframe Animation Specifications
 
-interface TelemetryTile {
-  id, label, status, value,
-  lastUpdatedSeconds,        // age of the reading
-  staleThresholdSeconds,     // beyond this → stale, regardless of `status`
-  gauge?,                    // 0–100 ring fill; omit for non-scalar subsystems
-  history?,                  // recent samples, newest last → sparkline
+```css
+/* 28-second 3D Orbital Trajectory with Depth Occlusion & Dynamic Scaling */
+@keyframes orbit-elliptical {
+  0%   { transform: translate(540px, 200px) scale(0.85); opacity: 0.85; }
+  12.5%{ transform: translate(470px, 260px) scale(1.05); opacity: 0.95; }
+  25%  { transform: translate(300px, 285px) scale(1.18); opacity: 1.00; } /* Perigee / Front */
+  37.5%{ transform: translate(130px, 260px) scale(1.05); opacity: 0.95; }
+  50%  { transform: translate(60px,  200px) scale(0.85); opacity: 0.85; }
+  62.5%{ transform: translate(130px, 140px) scale(0.68); opacity: 0.60; }
+  75%  { transform: translate(300px, 115px) scale(0.60); opacity: 0.45; } /* Apogee / Back */
+  87.5%{ transform: translate(470px, 140px) scale(0.68); opacity: 0.60; }
+  100% { transform: translate(540px, 200px) scale(0.85); opacity: 0.85; }
+}
+
+/* Downlink Telemetry RF Carrier Pulse */
+@keyframes beam-sweep {
+  0%, 100% { opacity: 0.50; stroke-dashoffset: 0; }
+  50%      { opacity: 0.85; stroke-dashoffset: -16; }
+}
+
+/* Ground Station Acquisition Radar Pulse */
+@keyframes pulse-signal-glow {
+  0%, 100% { r: 3px; opacity: 0.9; }
+  50%      { r: 6px; opacity: 0.3; }
+}
+
+/* Critical Hardware Fault Breathing (Soft pulse rather than strobe) */
+@keyframes fault-throb {
+  0%, 100% { opacity: 1.0; }
+  50%      { opacity: 0.7; }
 }
 ```
 
-**Status precedence rule — the core of the experiment:**
+### 5.3 Reduced Motion Accessibility Guarantee
 
-```ts
-getEffectiveStatus(tile) =
-  tile.lastUpdatedSeconds > tile.staleThresholdSeconds ? "stale" : tile.status
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
 ```
-
-Staleness always wins. A subsystem that reported `nominal` before a comms
-dropout is *unknown*, not healthy. No component reads `tile.status` directly
-for presentation — every one of them calls `getEffectiveStatus` first.
-
-Helpers: `cycleStatus(tile)` advances through the four states for demo, and
-simulates `stale` by **ageing the timestamp past the threshold** rather than
-special-casing it, so the demo path hits the same precedence rule the real
-feed will. `formatAge(seconds)` → `"MM:SS"`.
-
-React state lives entirely in `app/mission-control/page.tsx`
-(`"use client"`): `useState` for `tiles` and `selected`. Derived values
-(`effective`, `staleCount`, `faultCount`) are computed on render, never
-stored. No context, no reducer, no store — two pieces of state and one route.
-
-### 4.3 Styling conventions (binding)
-
-- No hardcoded hex in components. Every colour comes from a `@theme` token.
-- `STATUS_STYLES` class strings stay **literal** so Tailwind's scanner sees
-  them. Never build a class by interpolation (`text-${status}` will not ship).
-- `STATUS_STYLES` is `Record<SubsystemStatus, …>` — adding a state to the
-  union fails the build until every field is supplied. That is the intended
-  guard.
-- Static-by-default: only the mission-control route is a Client Component.
-
-### 4.4 NOT BUILT — named in the brief, no implementation
-
-Specification targets. Slot them into the existing grid and token set; do not
-introduce a parallel palette.
-
-| Widget | Intended bounds | Notes |
-|---|---|---|
-| Mission Clock / pass countdown | header strip, 4th `<dl>` cell, mono `text-sm` | T-minus to next pass; drives the pass-window budget |
-| Command Execution Panel | fluid column, third grid row | must carry the ground-override constraint visibly — override is a mission non-negotiable, not a buried menu |
-| Alert / Status Log | full-bleed row below the grid, mono `text-[11px]`, hue per severity | append-only; reuses the four status hues, no new colours |
-| Telemetry time-series charts | fluid column | `Sparkline` scales to it; axes and tooltips are the only additions needed |
-| SSTV image preview | fluid column | payload-specific |
-| Live feed | replaces the `TILES` mock | a `ponytail:` comment in `app/mission-control/page.tsx` marks the swap point — one `fetch()`, no refactor of the state model |
 
 ---
 
-## 5. Post-Lab Question — KJS-SRS-01
+## 6. UI Component Registry (Ghost Components)
 
-> **AI Reverse Engineering for Mission Control Dashboard:** Your team is
-> developing the SomaiyaSat & SomaiyaPod Mission Control Portal. You have
-> identified a professionally designed satellite monitoring dashboard that
-> contains telemetry panels, communication status indicators, and mission
-> health widgets similar to your requirements. Explain how AI-driven reverse
-> engineering and a `design.md` file can help your team understand the layout
-> structure and accelerate the UI design process before development begins.
+### 6.1 StatusRing Primitive (`components/StatusTile.tsx`)
 
-### 5.1 The problem being solved
+The system's core telemetry visualization primitive. Uses a shared coordinate space across all render sizes:
 
-A reference dashboard is a *rendered result*. What a team needs is the
-*ruleset* that produced it: the grid template, the token set, the type scale,
-and the behavioural contract of each widget. Reading those off a screenshot by
-eye is slow, lossy, and — worst — every developer reads it slightly
-differently. Three people building three panels from the same screenshot
-produce three greys, three border radii, and three ideas of what yellow means.
-That divergence is not caught by code review; it is caught six weeks later by
-an operator who can no longer tell an alert from a button.
+- **viewBox:** `0 0 104 104` with `-rotate-90` orientation (arc begins at 12 o'clock).
+- **Outer State Ring ($R_{\text{state}} = 46\text{px}$):** Encodes subsystem health via stroke dash pattern and width.
+- **Inner Gauge Arc ($R_{\text{gauge}} = 37\text{px}$):** Encodes scalar value ($0\text{–}100\%$) via circumference $C = 2\pi R \approx 232.48\text{px}$.
+- **Rendered Dimensions:**
+  - `h-7 w-7` ($28\text{px}$) — Legend reference row.
+  - `h-9 w-9` ($36\text{px}$) — Telemetry selector listbox row.
+  - `h-40 w-40` ($160\text{px}$) — Mission Control primary detail dial.
 
-AI-driven reverse engineering attacks the extraction step; `design.md` attacks
-the divergence step. They are two halves of one workflow.
+### 6.2 Redundant Status Style Matrix
 
-### 5.2 How automated layout parsing decomposes a telemetry interface
+| State | Accent Hue | Stroke Width | SVG Dasharray | Stencil Icon | Telemetry Implication |
+|---|---|---|---|---|---|
+| **Nominal** | `#00e676` (Live Green) | `2.0px` | `0` (Solid) | Circle-Check | Subsystem healthy; normal AI routing permitted. |
+| **Degraded**| `#ff9f1c` (Amber) | `2.5px` | `1 6` (Dotted) | Alert-Triangle | Marginal performance; de-prioritize and derate power. |
+| **Fault**   | `#ff3b30` (Alert Red) | `4.0px` | `0` (Solid Bold)| Octagon-Alert | Critical hardware failure; trigger payload shedding. |
+| **Stale**   | `#8e8e93` (Ghost Gray)| `2.0px` | `9 7` (Dashed) | Wifi-Off | Packet timeout exceeded; gauge forced to 0; initiate ground override. |
 
-Given the reference image (or its DOM), a vision-capable model performs a
-structured decomposition rather than a description:
+### 6.3 Ghost Component Inventory
 
-1. **Region segmentation.** Detect the top-level bands — header, rail, primary
-   viewport, log strip — and recover the box model: which are fixed-width,
-   which are fluid, where the gutters land. The output is a grid hypothesis,
-   e.g. `grid-cols-[19rem_minmax(0,1fr)]` with `gap-5` — precisely the
-   template this project runs, expressed as a rule rather than as pixels.
-2. **Repeated-unit detection.** Find the element that recurs — the subsystem
-   row, the KPI cell, the log line — and infer its internal template. In our
-   case: `ring | label + state | value + age`. One repeated unit becomes one
-   component; the parse tells you how many components you actually need, which
-   is usually far fewer than a screenshot suggests.
-3. **Token clustering.** Sample colours and cluster them. Distinct greys that
-   cluster tightly are one surface token with opacity variants, not four
-   colours. Ours resolve to four obsidian surfaces plus an opacity ladder on
-   one steel ink — a fact worth knowing *before* someone hardcodes `#14161b`.
-4. **Semantic role assignment.** This is the step a pixel-differ cannot do.
-   The model reasons that a saturated yellow appearing on a button and on
-   nothing else is an *interactive* token, not a warning one — which is
-   exactly why this project routes `degraded` to amber `#ff9f1c` and reserves
-   `#e8ff4d` for controls. Semantics, not swatches.
-5. **Type-scale recovery.** Measure sizes, weights, and tracking; separate the
-   condensed display face from the mono instrumentation face and note *which
-   content type* each governs. Here that produces the binding rule: every
-   numeric readout is IBM Plex Mono.
-6. **State inference and gap analysis.** A static reference shows one state.
-   The model enumerates the states each widget must have (default, hover,
-   selected, focus-visible, empty, error, **stale**) and flags the ones the
-   reference does not show. That gap list is the real value: the reference
-   dashboard almost certainly has no *stale* state, and stale is this
-   mission's central UX problem.
+| Component | File Path | Architectural Role & Structural Rules |
+|---|---|---|
+| **RootLayout** | `app/layout.tsx` | Pure black root shell, font mounting, antialiased rendering. |
+| **OrbitVisual**| `components/OrbitVisual.jsx` | 3D top-down orbit canopy with depth occlusion, Earth grid, PocketQube model, downlink ray. |
+| **ArrowLink** | `components/ArrowLink.tsx` | Minimalist 40px circular navigation trigger with directional SVG arrow and drift hover. |
+| **StatusTile** | `components/StatusTile.tsx` | Telemetry channel row in 19rem rail; active white border indicator; aria-pressed accessibility. |
+| **StatusDetail**| `components/StatusDetail.tsx`| Fluid telemetry inspection deck; 160px dial, 4-field data grid, freshness meter, trend sparkline. |
+| **Sparkline** | `components/StatusTile.tsx` | Dynamic SVG area-filled telemetry trend graph (`vectorEffect="non-scaling-stroke"`). |
+| **StatusLegend**| `components/StatusLegend.tsx`| 4-row status reference table rendering active `StatusRing` instances. |
+| **WorkstreamCard**| `components/WorkstreamCard.tsx`| 5-column ghost placard for Workstreams A–E with technical stencil line-art. |
+| **Operator Login Modal**| `app/page.jsx` | Floating glass modal (`bg-black/80 backdrop-blur-md`) for Level-4 Flight Director authorization. |
 
-The result is not "a description of the picture" — it is a normalised
-inventory: regions, tokens, scale, repeated units, missing states.
+---
 
-### 5.3 Why that inventory must land in `design.md` before code
+## 7. Telemetry State Engine & Staleness Precedence
 
-`design.md` is where the extraction stops being a chat transcript and becomes
-a build artefact:
+### 7.1 Telemetry Domain Model (`lib/status.ts`)
 
-- **Single source of truth for tokens.** The palette table in §2 is the
-  contract. `app/globals.css` implements it once under `@theme inline`;
-  components reference `bg-obsidian-900`, `text-fault`, `border-edge` and
-  never a hex literal. Change the doc and the variable, and every surface
-  follows. A hex typed into a component is a fork of the design system.
-- **Grid alignment settled once.** §1.4 fixes
-  `lg:grid-cols-[19rem_minmax(0,1fr)]` for *both* rows, and records *why*
-  `minmax(0,1fr)` beats `1fr` (the `w-full` sparkline overflows otherwise).
-  That is a bug pre-solved in prose for the cost of one line.
-- **Widget behaviour before implementation.** §4.1 states each component's
-  states — hover, selected, focus-visible, stale-blanked — so the person
-  writing `StatusTile` is implementing a spec, not improvising one.
-- **Reviewable and diffable.** Markdown in git means a palette change is a
-  pull request with an argument attached, not a Figma comment nobody reads.
-- **A brief an AI agent can execute.** The same document that aligns humans is
-  the highest-value context you can hand a coding agent. "Build the command
-  panel" plus §1–§4 yields something that matches the existing UI; the same
-  prompt without them yields a fifth grey and a new blue.
-- **Explicit gaps.** §4.4 lists what is *not* built. Reverse engineering
-  reliably surfaces widgets the reference has and we lack — mission clock,
-  command panel, alert log. Naming them with their intended bounds and their
-  constraints (the command panel *must* expose ground override) turns the
-  parse into a backlog.
+```typescript
+export type SubsystemStatus = "nominal" | "degraded" | "fault" | "stale";
 
-### 5.4 How this maps onto our Next.js / React / Tailwind structure
+export interface TelemetryTile {
+  id: string;
+  label: string;
+  status: SubsystemStatus;
+  value: string;
+  lastUpdatedSeconds: number;      // Seconds elapsed since last validated packet
+  staleThresholdSeconds: number;   // Maximum allowed packet latency before stale override
+  gauge?: number;                  // Optional 0–100 percentage for inner dial fill
+  history?: number[];              // Array of recent numerical telemetry samples
+}
+```
 
-The pipeline lands on real files, one stage per layer:
+### 7.2 The Staleness Precedence Axiom
 
-| Reverse-engineering output | Where it lands here |
-|---|---|
-| Colour clusters + semantic roles | `:root` custom properties → `@theme inline` in `app/globals.css` |
-| Type scale + face-per-content-type | `next/font/google` in `app/layout.tsx`, plus the `.display` utility |
-| Region segmentation | route-level `grid` / `flex` in `app/mission-control/page.tsx` |
-| Repeated units | `components/StatusTile.tsx`, `WorkstreamCard.tsx` |
-| Shared primitives across sizes | `StatusRing`, `Sparkline` — one geometry, three render sizes |
-| Widget state tables | the `STATUS_STYLES` record in `StatusTile.tsx` |
-| Data shape behind the widgets | `TelemetryTile` in `lib/status.ts` |
-| Inferred missing state | `getEffectiveStatus` — the stale precedence rule |
+$$\text{EffectiveStatus}(T) = \begin{cases} \text{stale}, & \text{if } T.\text{lastUpdatedSeconds} > T.\text{staleThresholdSeconds} \\ T.\text{status}, & \text{otherwise} \end{cases}$$
 
-Two structural consequences are worth calling out, because they are what makes
-the document *enforceable* rather than aspirational:
+**Operational Rule:** A subsystem reporting "nominal" immediately prior to a radio horizon loss or telemetry drop is **epistemologically unknown**, not healthy. Staleness strictly supersedes reported status. When a channel becomes stale:
+1. `getEffectiveStatus()` evaluates to `"stale"`.
+2. The inner dial gauge is clamped to `0%`.
+3. The numerical readout displays placeholder dashes (`——`).
+4. The freshness progress bar pins to `100% (threshold exceeded)`.
+5. The operator is prompted with Ground Station Override recommendations.
 
-**Tailwind v4 makes `design.md` executable.** Because tokens are declared as
-CSS variables and re-exported through `@theme inline`, the utility names in
-this document (`bg-obsidian-900`, `text-degraded`, `border-edge`) exist only
-if the token exists. A component cannot silently drift from the palette — it
-can only use a token or fail. One caveat the parse must respect: Tailwind
-scans source text, so `STATUS_STYLES` holds **literal** class strings.
-Interpolating `text-${status}` compiles and then ships unstyled.
+---
 
-**The type system enforces the state table.** `STATUS_STYLES` is typed
-`Record<SubsystemStatus, {...}>`. Add `"safe-mode"` to the union and the build
-breaks until name, meaning, implication, colour, dash, width and icon are all
-supplied. The four states in §2.3 are a closed set in the compiler, not a
-convention in a document — the strongest form of "single source of truth"
-available.
+## 8. Unimplemented Specification Targets (NOT BUILT)
 
-**State management stays trivial on purpose.** §4.2 records that mission
-control holds exactly two `useState` values and derives everything else on
-render. Documenting that *before* development is what stops someone reaching
-for Redux to hold a selected index. The parse tells you how much state the UI
-actually needs; writing it down keeps the answer from inflating.
+The following capabilities are specified in the mission architecture and must be integrated into the SpaceX Minimalist layout without altering the core token contract:
 
-### 5.5 Mission-specific caveats
+| Subsystem Module | Intended Grid Placement | Technical Specification & Constraints |
+|---|---|---|
+| **Mission Epoch Clock & Pass Countdown** | Header Right Strip | Monospaced countdown timer to next ground station AOS (Acquisition of Signal). Drives pass transmission window budget. |
+| **Ground Station Command & Override Deck**| Fluid Column (Row 3) | Direct hardware telecommand uplink console with two-man rule confirmation for transmitter lockout override. |
+| **Live Telemetry Event Stream (Log)** | Full-bleed bottom strip | Monospaced append-only chronological log of packet decodes, CRC check results, and autonomous scheduler decisions. |
+| **Multi-Channel Time-Series Analyzer** | Fluid Column modal | Expanded multi-variate SVG chart comparing battery voltage, bus current, and solar array temperature. |
+| **SSTV Image Frame Decoder** | Fluid Column modal | Progressive line-by-line rasterizer for Robot36 / Scottie1 amateur radio image decodes. |
+| **Decoded Telemetry WebSocket Feed** | `app/mission-control/page.tsx` | Direct replacement of the mock `TILES` array with a live WebSocket hook (`/api/telemetry/stream`). |
 
-Reverse engineering copies *structure*, and structure only. Three things must
-not be inherited from a reference dashboard:
+---
 
-- **Ground override is non-negotiable.** Whatever the reference does, the
-  override control stays visible and reachable. A prettier layout is not a
-  reason to bury it.
-- **Absence of data is not health.** Most commercial dashboards have no stale
-  state; ours must, because a green tile during a comms dropout is the exact
-  failure this experiment exists to fix. Copy the grid, add the state.
-- **Every autonomous decision needs a stated fallback.** The `implication`
-  field on each status is not decoration — it is where "what the router does
-  about it, and what the operator can do instead" is written down.
+## 9. AI Reverse Engineering & System Contract Analysis (KJS-SRS-01)
 
-Legal note: reverse-engineer for *structure and system* — grid, scale, token
-roles, state coverage. Reproducing a third party's proprietary visual identity
-(their exact brand palette, logo, or bespoke iconography) is a licensing
-question, not a design one.
+### 9.1 The Role of Reverse Engineering in Mission Telemetry Architecture
 
-### 5.6 Summary
+When building mission-critical aerospace cockpits, visual reference designs must be parsed into **deterministic rulesets**:
+1. **Region Segmentation:** Deconstructing arbitrary screens into rigid CSS grid contracts (e.g., `lg:grid-cols-[19rem_minmax(0,1fr)]`) that prevent layout shifts during high-frequency telemetry streaming.
+2. **Token Normalization:** Consolidating disparate gray values and arbitrary colors into a strict binary monochrome palette with distinct semantic accents (`#00e676`, `#ff3b30`).
+3. **Redundancy Synthesis:** Supplementing flat reference mockups with multi-modal encodings (dash patterns, stencil iconography) to meet MIL-STD-1472 and aerospace accessibility standards.
+4. **State Gap Remediation:** Identifying unrepresented mission failure modes (such as telemetry dropouts and stale packets) before writing UI code.
 
-Automated layout parsing converts a reference dashboard from a picture into an
-inventory: regions, repeated units, token clusters with semantic roles, a type
-scale, and — most valuably — the states the reference never shows. `design.md`
-converts that inventory into a contract the whole team and any coding agent
-builds against, before the first component is written. In this project that
-contract is directly executable: tokens become `@theme` variables, the state
-table becomes a `Record` the compiler checks, and the grid template becomes
-one class string shared by every row. The reference gets us the structure in
-hours instead of days; the mission constraints — stale-over-nominal
-precedence, visible ground override, a stated fallback per decision — are ours
-to add, and this document is where we add them.
+### 9.2 `DESIGN.md` as an Executable Build Contract
+
+This `design.md` document serves as the absolute source of truth for human engineers and autonomous AI coding agents alike:
+- **Zero Configuration Drift:** Declared tokens map 1:1 to Tailwind CSS v4 variables in `app/globals.css`.
+- **Compile-Time Type Safety:** `STATUS_STYLES` is strictly typed against `Record<SubsystemStatus, ...>`, preventing runtime presentation bugs.
+- **Predictable Agent Collaboration:** Coding assistants reference the explicit bounds and layout geometry herein to generate pixel-perfect extensions without breaking the minimalist SpaceX aesthetic.
