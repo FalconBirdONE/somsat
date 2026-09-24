@@ -146,40 +146,31 @@ The landing route acts as an interactive morphing aerospace portal that shifts s
 
 ### 3.3 Mission Control Route (`/mission-control` — `app/mission-control/page.tsx`)
 
-The operational flight deck layout runs a rigid two-column telemetry split:
+The flight deck is a full-width, reorderable telemetry widget grid over a legend/rationale rail. Subsystem detail opens in a stay-on-page overlay (§10.2) rather than a fixed side panel.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ HEADER: flex flex-wrap items-end justify-between border-b border-white/20 pb-6│
-│ ┌ [← Back Arrow (40px)] + Eyebrow + H1 "MISSION CONTROL" ┐  ┌ <dl> Counters: │
-│                                                              │ FAULTS: 01    │
-│                                                              │ STALE:  01    │
-│                                                              │ OVERRIDE: GND ┘│
+│ HEADER: [← Back Arrow] + Eyebrow + H1 "MISSION CONTROL"   <dl> FAULTS/STALE/ │
+│                                                             OVERRIDE         │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ ROW 1: mt-6 grid items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]       │
-│ ┌ ASIDE (19rem) ─────────────────────────┐ ┌ STATUS DETAIL PANEL (Fluid) ──┐│
-│ │ Header: "TELEMETRY · 6 CHANNELS"       │ │ Subsystem Header + Cycle Btn  ││
-│ │ Listbox of 6 Subsystem StatusTiles     │ │ Dual-Ring Dial (160px) +      ││
-│ │ • Link Quality (Nominal / 12.4 dB)     │ │ 4-Cell Telemetry Data Grid    ││
-│ │ • Battery / Power (Degraded / 41%)     │ │ Stale Freshness Meter Track   ││
-│ │ • Onboard Temp (Fault / 71°C)          │ │ 6-Sample Sparkline Trend      ││
-│ │ • TT&C (Nominal / 4 frm)               │ │ Autonomous Implication Box    ││
-│ │ • SSTV Queue (Stale / 2 img)           │ └───────────────────────────────┘│
-│ │ • M17 / Codec2 (Nominal / IDLE)        │                                  │
-│ │ Advisory Banner when Stale > 0         │                                  │
-│ └────────────────────────────────────────┘                                  │
+│ ROW 1: mt-6 · "TELEMETRY · 6 CHANNELS · DRAG THE GRIP TO REPRIORITISE"      │
+│ grid gap-4 sm:grid-cols-2 lg:grid-cols-3  (TelemetryWidgetGrid)             │
+│ ┌ P1          ⠿ ┐ ┌ P2          ⠿ ┐ ┌ P3          ⠿ ┐                         │
+│ │ StatusTile row │ │ StatusTile row │ │ StatusTile row │   ⠿ = grip handle    │
+│ │ ~~~ sparkline  │ │ ~~~ sparkline  │ │ ~~~ sparkline  │   (drag activator)   │
+│ └────────────────┘ └────────────────┘ └────────────────┘                     │
+│ ┌ P4 ... P6 ───────────────────────────────────────────┐                     │
+│ Advisory banner when Stale > 0                                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ ROW 2: mt-5 grid items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]       │
-│ ┌ STATE LEGEND (19rem) ──────────────────┐ ┌ DESIGN RATIONALE (<details>) ─┐│
-│ │ 4 Status Rows with real SVG Rings:     │ │ Native expandable details:    ││
-│ │ Nominal, Degraded, Fault, Stale        │ │ Epistemological staleness &   ││
-│ └────────────────────────────────────────┘ │ ground override rationale     ││
-│                                            └────────────────────────────────┘│
+│ ROW 2: mt-5 grid lg:grid-cols-[19rem_minmax(0,1fr)]                          │
+│ ┌ STATE LEGEND (19rem) ┐ ┌ DESIGN RATIONALE (<details>) ───────────────────┐ │
 └─────────────────────────────────────────────────────────────────────────────┘
+        click widget body ──▶ DetailOverlay (Radix Dialog, centred, scrim)
 ```
 
-- **Synchronized Rail Contract:** Both Row 1 and Row 2 share the exact `lg:grid-cols-[19rem_minmax(0,1fr)]` template. The `minmax(0,1fr)` sizing prevents fluid SVG sparklines from overflowing the right column.
-- **Vertical Hierarchy:** `pb-6` header divider → `mt-6` to telemetry rail → `mt-5` to legend rail → `gap-5` inter-column gutter.
+- **Rank label:** `P{n}` in each widget header is the operator's display priority — it reflects grid order only. It does **not** reprioritise the onboard Data Priority Queue (TT&C > SSTV > M17/Codec2 is unchanged).
+- **Live feed:** the page ticks once per second (mock random walk; see §8 WebSocket target). The tick never pauses — not during a drag, not while the overlay is open.
+- **Vertical Hierarchy:** `pb-6` header divider → `mt-6` widget grid → `mt-5` legend rail → `gap-4` grid gutter / `gap-5` rail gutter.
 
 ---
 
@@ -316,7 +307,7 @@ The system's core telemetry visualization primitive. Uses a shared coordinate sp
 - **Inner Gauge Arc ($R_{\text{gauge}} = 37\text{px}$):** Encodes scalar value ($0\text{–}100\%$) via circumference $C = 2\pi R \approx 232.48\text{px}$.
 - **Rendered Dimensions:**
   - `h-7 w-7` ($28\text{px}$) — Legend reference row.
-  - `h-9 w-9` ($36\text{px}$) — Telemetry selector listbox row.
+  - `h-9 w-9` ($36\text{px}$) — Telemetry widget row (grid card body).
   - `h-40 w-40` ($160\text{px}$) — Mission Control primary detail dial.
 
 ### 6.2 Redundant Status Style Matrix
@@ -335,8 +326,10 @@ The system's core telemetry visualization primitive. Uses a shared coordinate sp
 | **RootLayout** | `app/layout.tsx` | Pure black root shell, font mounting, antialiased rendering. |
 | **OrbitVisual**| `components/OrbitVisual.jsx` | 3D top-down orbit canopy with depth occlusion, Earth grid, PocketQube model, downlink ray. |
 | **ArrowLink** | `components/ArrowLink.tsx` | Minimalist 40px circular navigation trigger with directional SVG arrow and drift hover. |
-| **StatusTile** | `components/StatusTile.tsx` | Telemetry channel row in 19rem rail; active white border indicator; aria-pressed accessibility. |
-| **StatusDetail**| `components/StatusDetail.tsx`| Fluid telemetry inspection deck; 160px dial, 4-field data grid, freshness meter, trend sparkline. |
+| **StatusTile** | `components/StatusTile.tsx` | Telemetry channel row; body of each grid widget and the click target that opens the overlay. |
+| **TelemetryWidgetGrid** | `components/TelemetryWidgetGrid.tsx` | dnd-kit sortable grid of widgets; grip-handle drag, localStorage order. See §10.1. |
+| **DetailOverlay** | `components/DetailOverlay.tsx` | Radix Dialog wrapping `StatusDetail` + badge, raw values, UTC timestamp, stale warning. See §10.2. |
+| **StatusDetail**| `components/StatusDetail.tsx`| Telemetry inspection deck, rendered inside `DetailOverlay`; 160px dial, 4-field data grid, freshness meter, trend sparkline. |
 | **Sparkline** | `components/StatusTile.tsx` | Dynamic SVG area-filled telemetry trend graph (`vectorEffect="non-scaling-stroke"`). |
 | **StatusLegend**| `components/StatusLegend.tsx`| 4-row status reference table rendering active `StatusRing` instances. |
 | **WorkstreamCard**| `components/WorkstreamCard.tsx`| 5-column ghost placard for Workstreams A–E with technical stencil line-art. |
@@ -407,3 +400,39 @@ This `design.md` document serves as the absolute source of truth for human engin
 - **Zero Configuration Drift:** Declared tokens map 1:1 to Tailwind CSS v4 variables in `app/globals.css`.
 - **Compile-Time Type Safety:** `STATUS_STYLES` is strictly typed against `Record<SubsystemStatus, ...>`, preventing runtime presentation bugs.
 - **Predictable Agent Collaboration:** Coding assistants reference the explicit bounds and layout geometry herein to generate pixel-perfect extensions without breaking the minimalist SpaceX aesthetic.
+
+---
+
+## 10. Interaction Patterns (UIP Exp 05 — Workstream E)
+
+Both patterns add behaviour only. No new colours: signal-yellow marks every drag/close affordance, and state is still carried by the four-state system (§6.2).
+
+### 10.1 Drag-and-Drop Widget Reordering (`components/TelemetryWidgetGrid.tsx`)
+
+Library: `@dnd-kit/core` + `@dnd-kit/sortable` (`rectSortingStrategy`, `rectIntersection` collision). Drag activates from the **grip handle only**, so a click or Enter on the widget body always means "open detail" and never starts a drag.
+
+| State | Trigger | Visual |
+|---|---|---|
+| **Page load cue** | Initial render | Six-dot grip in `text-signal` at 25% opacity in every widget header — visible but quiet. |
+| **Mouse hover** | Pointer over widget (`group-hover`) | Grip → 100% opacity, `cursor-grab`. Also 100% on keyboard focus and on `hover:none` (touch) devices, where hover never fires. |
+| **Drag initiated** | 3px pointer/touch movement on grip (`distance: 3`), or Space/Enter on focused grip | `DragOverlay` copy lifts: `scale-[1.03]`, `shadow-2xl shadow-black`, `border-edge-strong`, `cursor-grabbing`. |
+| **Enters valid target** | `over !== null` | Placeholder in the landing slot: content at 25% opacity, `outline-2 outline-dashed outline-signal` offset 2px. |
+| **Drop accepted** | Released over a widget | `arrayMove`; remaining widgets reflow with dnd-kit's transform transition. Order saved. |
+| **Drop rejected** | Released outside the grid (`over === null`) or Esc | No state change; `DragOverlay` drop animation springs the card back to its original slot. Outline removed as soon as the pointer leaves the grid. |
+
+- **Sensors:** `MouseSensor` + `TouchSensor` (both 3px) + `KeyboardSensor` (`sortableKeyboardCoordinates`). Grip is `touch-none`, so a touch drag on it never scrolls the page, while touches on the rest of the widget still scroll.
+- **Persistence:** `localStorage["somsat.mission-control.widget-order"]` — JSON array of channel ids, read via `useSyncExternalStore` (server snapshot `null` → no hydration mismatch). UI-layer only; no API.
+- **Fallback:** `restoreOrder()` (`lib/order.ts`) drops unknown/duplicate ids and appends any channel missing from the save, so a stale or corrupt layout can reorder the grid but never hide a channel. Blocked storage → default order.
+- **Scope:** per browser. The operator callsign is not persisted yet; key by callsign once login stores one.
+- **Stale widgets** drag like any other.
+
+### 10.2 Stay-on-Page Detail Overlay (`components/DetailOverlay.tsx`)
+
+Library: `@radix-ui/react-dialog` (focus trap, `aria-modal`, focus return to the widget, scroll lock).
+
+- **Open:** click/tap/Enter on a widget body. Controlled by `openId` in page state — **no route change**, dashboard stays mounted underneath.
+- **Layout:** centred, `max-w-3xl`, `max-h-[calc(100dvh-2rem)]` scrolling; scrim `bg-obsidian-950/80` + 2px blur. Enters with the existing `float-up` keyframe (disabled under reduced motion).
+- **Contents:** title bar (`{label} · live detail` + four-state badge: icon + name, dashed border when stale) → stale warning (if stale) → `StatusDetail` (dial, fields, freshness meter, sparkline, router implication, Cycle state) → raw value, last-packet UTC time, raw samples oldest → newest.
+- **Dismiss:** scrim click, Escape, or the close control — 36px circle, `border-signal/50 text-signal`, top-right; fills signal-yellow on hover.
+- **Live while open:** the overlay reads its tile from the live `tiles` array each render, and the 1s feed keeps ticking — values, freshness and even the state (e.g. a channel going stale mid-inspection) update in place.
+- **Stale warning:** dashed `border-stale` panel with the wifi-off icon, `role="status"` (announced if a channel goes stale while open): *"Data may be unreliable. No packet for mm:ss, past the mm:ss window. The autonomous router may be scheduling from this value — consider ground override."* The raw value is still shown for forensics; the dial shows `——` per §7.2.

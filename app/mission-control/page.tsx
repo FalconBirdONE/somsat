@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ArrowLink from "@/components/ArrowLink";
-import StatusDetail from "@/components/StatusDetail";
+import DetailOverlay from "@/components/DetailOverlay";
 import StatusLegend from "@/components/StatusLegend";
-import StatusTile from "@/components/StatusTile";
+import TelemetryWidgetGrid from "@/components/TelemetryWidgetGrid";
 import { cycleStatus, getEffectiveStatus, type TelemetryTile } from "@/lib/status";
 
 // ponytail: static mock stands in for the decoded-telemetry feed. Swap for a
@@ -71,16 +71,56 @@ const TILES: TelemetryTile[] = [
   },
 ];
 
+// ponytail: random-walk mock of the live feed, one tick per second. Replace
+// with the decoder WebSocket (design.md §8) — the grid and overlay just read
+// `tiles`, so nothing else changes.
+function tick(t: TelemetryTile, frozen: boolean): TelemetryTile {
+  const aged = { ...t, lastUpdatedSeconds: t.lastUpdatedSeconds + 1 };
+  if (frozen || Math.random() > 0.4) return aged;
+  if (!t.history) return { ...aged, lastUpdatedSeconds: 0 };
+  const last = t.history.at(-1)!;
+  const dp = Number.isInteger(last) ? 0 : 1;
+  const next = Math.max(0, +(last + (Math.random() - 0.5) * (dp ? 1 : 3)).toFixed(dp));
+  return {
+    ...aged,
+    lastUpdatedSeconds: 0,
+    history: [...t.history.slice(-5), next],
+    value: t.value.replace(/\d+(\.\d+)?/, next.toFixed(dp)),
+  };
+}
+
 export default function MissionControlPage() {
   const [tiles, setTiles] = useState(TILES);
-  const [selected, setSelected] = useState(0);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [now, setNow] = useState<number | null>(null);
+  // Channels whose feed has dropped out — they age but receive no packets.
+  const frozen = useRef(new Set(["sstv"]));
+
+  // Keeps running while the detail overlay is open: short passes can't
+  // afford a paused dashboard behind a modal.
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTiles((prev) => prev.map((t) => tick(t, frozen.current.has(t.id))));
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const effective = tiles.map(getEffectiveStatus);
   const staleCount = effective.filter((s) => s === "stale").length;
   const faultCount = effective.filter((s) => s === "fault").length;
 
-  const cycleAt = (i: number) =>
-    setTiles((prev) => prev.map((t, j) => (i === j ? cycleStatus(t) : t)));
+  // A demo-staled channel stops receiving packets, or the next tick would
+  // freshen it straight back.
+  const cycle = (id: string) =>
+    setTiles((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        const next = cycleStatus(t);
+        frozen.current[getEffectiveStatus(next) === "stale" ? "add" : "delete"](id);
+        return next;
+      }),
+    );
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8">
@@ -117,35 +157,25 @@ export default function MissionControlPage() {
         </dl>
       </header>
 
-      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]">
-        {/* Left: selector. */}
-        <aside className="rounded-xl border border-edge bg-obsidian-900 p-3">
-          <h2 className="px-3 pb-2 pt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-steel/45">
-            Telemetry · {tiles.length} channels
-          </h2>
+      <section className="mt-6">
+        <h2 className="mb-3 font-mono text-[10px] uppercase tracking-[0.18em] text-steel/45">
+          Telemetry · {tiles.length} channels · drag the grip to reprioritise
+        </h2>
+        <TelemetryWidgetGrid tiles={tiles} onOpen={setOpenId} />
+        {staleCount > 0 && (
+          <p className="mt-3 rounded-lg bg-stale/10 px-3 py-2.5 text-[11px] leading-5 text-stale">
+            {staleCount} channel{staleCount > 1 ? "s" : ""} without fresh
+            telemetry — router decisions may use outdated data.
+          </p>
+        )}
+      </section>
 
-          <div role="listbox" aria-label="Subsystem telemetry" className="flex flex-col gap-0.5">
-            {tiles.map((tile, i) => (
-              <StatusTile
-                key={tile.id}
-                tile={tile}
-                selected={i === selected}
-                onSelect={() => setSelected(i)}
-              />
-            ))}
-          </div>
-
-          {staleCount > 0 && (
-            <p className="mt-3 rounded-lg bg-stale/10 px-3 py-2.5 text-[11px] leading-5 text-stale">
-              {staleCount} channel{staleCount > 1 ? "s" : ""} without fresh
-              telemetry — router decisions may use outdated data.
-            </p>
-          )}
-        </aside>
-
-        {/* Right: what the selected telemetry means. */}
-        <StatusDetail tile={tiles[selected]} onCycle={() => cycleAt(selected)} />
-      </div>
+      <DetailOverlay
+        tile={tiles.find((t) => t.id === openId)}
+        now={now}
+        onClose={() => setOpenId(null)}
+        onCycle={() => openId && cycle(openId)}
+      />
 
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]">
         <section className="rounded-xl border border-edge bg-obsidian-900 p-5">
